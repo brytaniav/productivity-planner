@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 175" role="img" aria-label="Charlie Brown figure">
+  <path d="M48 147 43 166h-20m43-19 5 19h20" fill="none" stroke="#26342D" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M29 164h-9c-6 0-9 5-8 8h38m45-8H80c-5 0-8 5-8 8h32" fill="#7E4F3C" stroke="#26342D" stroke-width="3"/>
+  <path d="M32 92h45l8 55H25Z" fill="#F3CB54" stroke="#26342D" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m27 119 15-7 13 9 13-9 15 8" fill="none" stroke="#26342D" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M31 96 12 123m67-26 19 27" fill="none" stroke="#E9AB79" stroke-width="10" stroke-linecap="round"/>
+  <path d="M52 92v-9" stroke="#E9AB79" stroke-width="12"/>
+  <ellipse cx="55" cy="48" rx="42" ry="44" fill="#F0B982" stroke="#26342D" stroke-width="4"/>
+  <path d="M18 25c8-17 26-24 41-22 14 1 27 9 35 22-11-9-25-13-38-12-16-1-27 4-38 12Z" fill="#292C27"/>
+  <path d="M50 5c7-8 15-6 19-1m-9-1c7-9 16-8 21-2" fill="none" stroke="#292C27" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="42" cy="48" r="3" fill="#26342D"/><circle cx="68" cy="48" r="3" fill="#26342D"/>
+  <path d="M47 66c6 5 13 5 18 0" fill="none" stroke="#26342D" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M19 48c-10-1-11 16 0 19m72-19c10-1 11 16 0 19" fill="#F0B982" stroke="#26342D" stroke-width="3"/>
+</svg>
