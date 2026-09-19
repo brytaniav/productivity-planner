@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 185" role="img" aria-label="Red doghouse with a complete roof">
+  <circle cx="174" cy="39" r="27" fill="#FFDB78"/>
+  <path d="M32 88 110 14l78 74v85H32Z" fill="#D87867" stroke="#344A3D" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M20 90 110 4l90 86-8 8-82-78-82 78Z" fill="#BD5B50" stroke="#344A3D" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M83 173v-31c0-15 12-27 27-27s27 12 27 27v31" fill="#344A3D"/>
+  <path d="M21 174h178" stroke="#799D74" stroke-width="4" stroke-linecap="round"/>
+</svg>
