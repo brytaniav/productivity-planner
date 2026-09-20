@@ -8,6 +8,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC = path.join(__dirname, 'public');
 const STATIC_FILES = new Set(['index.html', 'app.js', 'daily-plan.js', 'tracker.js', 'styles.css', 'house.svg', 'charlie-snoopy-reference.png', 'friends-reference.png']);
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png' };
+const QUOTE_URL = 'https://motivational-spark-api.vercel.app/api/quotes/2';
 
 function respond(res, status, data) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -63,12 +64,30 @@ class TaskService {
   delete(id) { return this.repository.delete(id); }
 }
 
+class QuoteService {
+  constructor(fetchImpl = fetch) { this.fetch = fetchImpl; }
+
+  async get() {
+    const response = await this.fetch(QUOTE_URL, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw Object.assign(new Error('Quote unavailable.'), { status: 502 });
+    const data = await response.json();
+    if (typeof data.quote !== 'string' || !data.quote.trim() || typeof data.author !== 'string' || !data.author.trim()) {
+      throw Object.assign(new Error('Quote unavailable.'), { status: 502 });
+    }
+    return { quote: data.quote.trim(), author: data.author.trim() };
+  }
+}
+
 class PlannerServer {
-  constructor(taskService) { this.tasks = taskService; }
+  constructor(taskService, quoteService = new QuoteService()) { this.tasks = taskService; this.quote = quoteService; }
 
   async handle(req, res) {
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+      if (url.pathname === '/api/quote') {
+        if (req.method !== 'GET') return respond(res, 405, { error: 'Method not allowed.' });
+        return respond(res, 200, await this.quote.get());
+      }
       if (url.pathname === '/api/tasks') {
         if (req.method === 'GET') return respond(res, 200, await this.tasks.list());
         if (req.method === 'POST') return respond(res, 201, await this.tasks.create(await readBody(req)));
@@ -117,4 +136,4 @@ async function main() {
 
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });
 
-module.exports = { TaskService, PlannerServer };
+module.exports = { TaskService, QuoteService, PlannerServer };

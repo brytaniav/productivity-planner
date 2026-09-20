@@ -1,11 +1,20 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { FirestoreTaskRepository } = require('../public/backend/database/firestore-task-repository');
-const { TaskService, PlannerServer } = require('../server');
+const { TaskService, QuoteService, PlannerServer } = require('../server');
 
 function response(status, data = {}) {
   return { ok: status >= 200 && status < 300, status, json: async () => data };
 }
+
+test('quote service reads the supplied API response and rejects invalid data', async () => {
+  const service = new QuoteService(async url => {
+    assert.equal(url, 'https://motivational-spark-api.vercel.app/api/quotes/2');
+    return response(200, { quote: ' Keep going. ', author: ' Someone ' });
+  });
+  assert.deepEqual(await service.get(), { quote: 'Keep going.', author: 'Someone' });
+  await assert.rejects(() => new QuoteService(async () => response(200, { quote: '', author: 'Someone' })).get(), { status: 502 });
+});
 
 test('task service validates input and passes a complete task to the repository', async () => {
   const repository = { create: async task => task };
@@ -99,10 +108,11 @@ test('HTTP task routes return repository data and validation errors', async () =
     },
     delete: async id => tasks.delete(id),
   };
-  const server = new PlannerServer(new TaskService(repository)).listen(0);
+  const server = new PlannerServer(new TaskService(repository), { get: async () => ({ quote: 'Keep going.', author: 'Someone' }) }).listen(0);
   try {
     await new Promise(resolve => server.once('listening', resolve));
     const base = `http://127.0.0.1:${server.address().port}`;
+    assert.deepEqual(await (await fetch(`${base}/api/quote`)).json(), { quote: 'Keep going.', author: 'Someone' });
     const created = await fetch(`${base}/api/tasks`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Plan week', dueDate: '2026-09-21', owner: 'you', priority: 'high' }),
