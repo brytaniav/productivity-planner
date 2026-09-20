@@ -30,7 +30,7 @@ function taskSort(a, b) { return Number(a.completed) - Number(b.completed) || pr
 function filtered(tasks) { return tasks.filter(task => state.filter === 'all' || task.owner === state.filter); }
 function taskCard(task) {
   const today = localDate(new Date());
-  const due = task.dueDate < today && !task.completed ? 'Overdue' : task.dueDate === today ? 'Today' : formatDate(task.dueDate);
+  const due = task.dueDate < today && !task.completed ? `Carried over · due ${formatDate(task.dueDate)}` : task.dueDate === today ? 'Today' : formatDate(task.dueDate);
   return `<article class="task-card ${task.completed ? 'complete' : ''} ${task.priority}-task"><button class="check-button" data-toggle="${task.id}" aria-label="${task.completed ? 'Mark incomplete' : 'Complete'} ${escapeHTML(task.title)}">${task.completed ? '✓' : ''}</button><div class="task-body"><div class="task-title">${escapeHTML(task.title)}</div><div class="task-meta"><span class="due-date">◷ ${due}</span><span class="meta-dot">·</span><span class="owner-label ${task.owner}"><span class="mini-avatar"><img src="${personImage[task.owner]}" alt=""></span>${personName[task.owner]}</span></div></div><span class="priority ${task.priority}"><span class="priority-dot"></span>${task.priority}</span><button class="edit-button" data-edit="${task.id}" aria-label="Edit ${escapeHTML(task.title)}" title="Edit task">✎</button><button class="delete-button" data-delete="${task.id}" aria-label="Delete ${escapeHTML(task.title)}" title="Delete task">×</button></article>`;
 }
 function renderList(selector, tasks, empty = 'A clear sky! Add your first task to get started.') { $(selector).innerHTML = tasks.length ? tasks.map(taskCard).join('') : `<div class="empty-state"><span>✳</span><h3>Nothing here yet</h3><p>${empty}</p></div>`; }
@@ -51,10 +51,11 @@ function renderFilteredList(selector, tasks, empty) {
     </section>`;
   }).join('');
 }
-function renderProgress() {
+function renderProgress(plan) {
+  $('#today-view .insight-card > p').textContent = "From today's suggested list.";
   $('#progress-list').innerHTML = ['you', 'partner'].map(owner => {
-    const own = state.tasks.filter(task => task.owner === owner);
-    const done = own.filter(task => task.completed).length;
+    const own = plan[owner].tasks;
+    const done = plan[owner].completedToday.length;
     const percentage = own.length ? Math.round(done / own.length * 100) : 0;
     return `<div class="progress-person"><div class="progress-heading"><span class="progress-avatar ${owner}"><img src="${personImage[owner]}" alt=""></span><strong>${personName[owner]}</strong><span>${done}/${own.length} done</span></div><div class="progress-track"><div class="progress-fill ${owner}" style="width:${percentage}%"></div></div></div>`;
   }).join('');
@@ -74,18 +75,35 @@ function renderCalendar() {
   $('#selected-date-label').textContent = `Due ${formatDate(state.selected, { weekday: 'long', month: 'long', day: 'numeric' })}`;
   renderList('#selected-date-tasks', state.tasks.filter(task => task.dueDate === state.selected).sort(taskSort), 'No tasks due on this day.');
 }
+function renderTracker() {
+  const stats = Tracker.buildStats(state.tasks);
+  $('#tracker-summary').innerHTML = ['you', 'partner'].map(owner => {
+    const person = stats.people[owner];
+    return `<article class="tracker-person ${owner}"><div class="tracker-person-heading"><span class="tracker-portrait ${owner}"><img src="${personImage[owner]}" alt=""></span><div><span class="kicker">PERSONAL PROGRESS</span><h3>${personName[owner]}</h3></div></div><div class="tracker-stats"><div><strong>${person.weekCompleted}</strong><span>done this week</span></div><div><strong>${person.assigned ? `${person.rate}%` : '—'}</strong><span>overall completion</span></div><div><strong>${person.open}</strong><span>still open</span></div></div><div class="tracker-rate-track" aria-label="${personName[owner]} completed ${person.completed} of ${person.assigned} assigned tasks"><div style="width:${person.rate}%"></div></div><p>${person.completed} of ${person.assigned} assigned tasks completed</p></article>`;
+  }).join('');
+  const max = Math.max(1, ...stats.people.you.counts, ...stats.people.partner.counts);
+  const chart = stats.days.map((day, index) => `<div class="tracker-day"><div class="tracker-bars">${['you', 'partner'].map(owner => {
+    const count = stats.people[owner].counts[index];
+    return `<div class="tracker-bar-slot" title="${personName[owner]}: ${count} completed on ${day.dateLabel}"><span class="tracker-count">${count || ''}</span><div class="tracker-bar ${owner}" style="height:${count ? Math.max(8, Math.round(count / max * 100)) : 0}%"></div></div>`;
+  }).join('')}</div><span class="tracker-day-label">${day.label}<small>${day.dateLabel}</small></span></div>`).join('');
+  $('#tracker-chart').innerHTML = `<div class="tracker-plot" role="img" aria-label="Seven day comparison: Snoopy completed ${stats.people.you.weekCompleted} tasks, Charlie Brown completed ${stats.people.partner.weekCompleted} tasks">${chart}</div>${stats.people.you.weekCompleted + stats.people.partner.weekCompleted === 0 ? '<p class="tracker-empty">No completed tasks in the last seven days yet. Your first checkmark will appear here.</p>' : ''}`;
+}
 function render() {
-  const daily = filtered([...state.tasks]).sort(taskSort);
+  const today = localDate(new Date());
+  const plan = DailyPlan.buildDailyPlan(state.tasks, today);
+  const daily = filtered(['you', 'partner'].flatMap(owner => plan[owner].tasks));
+  if (!$('#daily-explainer')) $('#today-list').insertAdjacentHTML('beforebegin', '<p id="daily-explainer" class="daily-explainer">Up to 5 per person: 2 high, 2 medium, 1 low. Tasks due soon take priority; unfinished tasks carry over tomorrow.</p>');
   renderFilteredList('#today-list', daily, 'Your daily lineup is clear. Add a task or enjoy the moment.');
   renderFilteredList('#all-list', filtered([...state.tasks]).sort((a, b) => Number(a.completed) - Number(b.completed) || a.dueDate.localeCompare(b.dueDate) || priorityScore[b.priority] - priorityScore[a.priority]));
-  renderProgress(); renderCalendar();
+  renderProgress(plan); renderCalendar(); renderTracker();
+  $('#today-label').textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 function setView(view) {
-  if (!['today', 'calendar', 'all'].includes(view)) view = 'today';
+  if (!['today', 'calendar', 'all', 'tracker'].includes(view)) view = 'today';
   state.view = view;
   $$('.view').forEach(el => el.classList.toggle('hidden', el.id !== `${view}-view`));
   $$('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
-  const copy = { today: ['Today', 'Make today count', "Good things happen one task at a time. Let's get going!"], calendar: ['Calendar', 'A little look ahead', 'All your important dates, together in one place.'], all: ['All tasks', 'Every little thing', 'A cozy home for every plan, big or small.'] }[view];
+  const copy = { today: ['Today', 'Make today count', "Good things happen one task at a time. Let's get going!"], calendar: ['Calendar', 'A little look ahead', 'All your important dates, together in one place.'], all: ['All tasks', 'Every little thing', 'A cozy home for every plan, big or small.'], tracker: ['Tracker', 'Celebrate your progress', 'A little look at what you have accomplished together.'] }[view];
   $('#breadcrumb').textContent = copy[0]; $('#page-title').innerHTML = `${copy[1]}<span class="period">.</span>`; $('#page-subtitle').textContent = copy[2];
   location.hash = view;
 }
