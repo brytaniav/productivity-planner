@@ -24,6 +24,18 @@ class TaskApi {
 }
 
 const taskApi = new TaskApi();
+async function loadQuote() {
+  try {
+    const response = await fetch('/api/quote');
+    if (!response.ok) return;
+    const { quote, author } = await response.json();
+    if (typeof quote !== 'string' || typeof author !== 'string') return;
+    $('.quote-card p').textContent = quote;
+    $('.quote-footer').textContent = `— ${author}`;
+  } catch {
+    // Keep the quote already in the page when the API is unavailable.
+  }
+}
 async function refresh() { try { state.tasks = await taskApi.list(); render(); } catch (error) { showError(error.message); } }
 function showError(message) { $('#form-error').textContent = message; if (!$('#task-dialog').open) alert(message); }
 function taskSort(a, b) { return Number(a.completed) - Number(b.completed) || priorityScore[b.priority] - priorityScore[a.priority] || a.dueDate.localeCompare(b.dueDate); }
@@ -157,4 +169,5 @@ $('#theme-toggle').addEventListener('click', () => setTheme(document.documentEle
 setTheme(localStorage.getItem('daydream-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
 setView(location.hash.slice(1) || 'today');
 refresh();
+loadQuote();
 setInterval(refresh, 15000);
