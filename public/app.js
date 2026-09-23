@@ -43,7 +43,16 @@ function filtered(tasks) { return tasks.filter(task => state.filter === 'all' ||
 function taskCard(task) {
   const today = localDate(new Date());
   const due = task.dueDate < today && !task.completed ? `Carried over · due ${formatDate(task.dueDate)}` : task.dueDate === today ? 'Today' : formatDate(task.dueDate);
-  return `<article class="task-card ${task.completed ? 'complete' : ''} ${task.priority}-task"><button class="check-button" data-toggle="${task.id}" aria-label="${task.completed ? 'Mark incomplete' : 'Complete'} ${escapeHTML(task.title)}">${task.completed ? '✓' : ''}</button><div class="task-body"><div class="task-title">${escapeHTML(task.title)}</div><div class="task-meta"><span class="due-date">◷ ${due}</span><span class="meta-dot">·</span><span class="owner-label ${task.owner}"><span class="mini-avatar"><img src="${personImage[task.owner]}" alt=""></span>${personName[task.owner]}</span></div></div><span class="priority ${task.priority}"><span class="priority-dot"></span>${task.priority}</span><button class="edit-button" data-edit="${task.id}" aria-label="Edit ${escapeHTML(task.title)}" title="Edit task">✎</button><button class="delete-button" data-delete="${task.id}" aria-label="Delete ${escapeHTML(task.title)}" title="Delete task">×</button></article>`;
+  const subtasks = Array.isArray(task.subtasks) ? task.subtasks : [];
+  const subtaskDone = subtasks.filter(item => item.completed).length;
+  const details = task.notes || subtasks.length ? `<div class="task-details">${task.notes ? `<p class="task-notes">${escapeHTML(task.notes)}</p>` : ''}${subtasks.length ? `<div class="subtask-list"><span class="subtask-progress">${subtaskDone}/${subtasks.length} checklist items</span>${subtasks.map(item => `<label class="subtask ${item.completed ? 'done' : ''}"><input type="checkbox" data-subtask="${task.id}" data-subtask-id="${item.id}" ${item.completed ? 'checked' : ''}><span>${escapeHTML(item.title)}</span></label>`).join('')}</div>` : ''}</div>` : '';
+  return `<article class="task-card ${task.completed ? 'complete' : ''} ${task.priority}-task ${task.pinned ? 'pinned' : ''}"><button class="check-button" data-toggle="${task.id}" aria-label="${task.completed ? 'Mark incomplete' : 'Complete'} ${escapeHTML(task.title)}">${task.completed ? '✓' : ''}</button><div class="task-body"><div class="task-title">${task.pinned ? '<span class="pin-mark">●</span>' : ''}${escapeHTML(task.title)}</div><div class="task-meta"><span class="due-date">◷ ${due}</span><span class="meta-dot">·</span><span class="owner-label ${task.owner}"><span class="mini-avatar"><img src="${personImage[task.owner]}" alt=""></span>${personName[task.owner]}</span>${subtasks.length ? `<span class="meta-dot">·</span><span>${subtaskDone}/${subtasks.length} subtasks</span>` : ''}</div>${details}</div><span class="priority ${task.priority}"><span class="priority-dot"></span>${task.priority}</span><div class="task-actions"><button class="today-action ${task.manualToday ? 'active' : ''}" data-today="${task.id}" aria-label="${task.manualToday ? 'Remove from' : 'Add to'} Today" title="${task.manualToday ? 'Remove from Today' : 'Add to Today'}">☀</button><button class="pin-button ${task.pinned ? 'active' : ''}" data-pin="${task.id}" aria-label="${task.pinned ? 'Unpin' : 'Pin'} ${escapeHTML(task.title)}" title="${task.pinned ? 'Unpin' : 'Pin to Today'}">◆</button><button class="edit-button" data-edit="${task.id}" aria-label="Edit ${escapeHTML(task.title)}" title="Edit task">✎</button><button class="delete-button" data-delete="${task.id}" aria-label="Delete ${escapeHTML(task.title)}" title="Delete task">×</button></div></article>`;
+}
+
+function taskValues(task, changes = {}) {
+  return { title: task.title, dueDate: task.dueDate, owner: task.owner, priority: task.priority,
+    notes: task.notes || '', subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
+    pinned: Boolean(task.pinned), manualToday: Boolean(task.manualToday), ...changes };
 }
 function renderList(selector, tasks, empty = 'A clear sky! Add your first task to get started.') { $(selector).innerHTML = tasks.length ? tasks.map(taskCard).join('') : `<div class="empty-state"><span>✳</span><h3>Nothing here yet</h3><p>${empty}</p></div>`; }
 function renderFilteredList(selector, tasks, empty) {
@@ -130,6 +139,8 @@ function openTaskDialog(task = null) {
   $('#task-dialog .submit-button').textContent = task ? 'Save changes' : 'Add to our planner →';
   form.elements.title.value = task?.title || '';
   form.elements.dueDate.value = task?.dueDate || localDate(new Date());
+  form.elements.notes.value = task?.notes || '';
+  form.elements.checklist.value = (task?.subtasks || []).map(item => item.title).join('\n');
   if (task) {
     form.elements.priority.value = task.priority;
     form.elements.owner.value = task.owner;
@@ -141,6 +152,9 @@ document.addEventListener('click', async event => {
   const nav = event.target.closest('[data-view]'); if (nav) setView(nav.dataset.view);
   const filter = event.target.closest('[data-filter]'); if (filter) { state.filter = filter.dataset.filter; $$('[data-filter]').forEach(el => el.classList.toggle('selected', el.dataset.filter === state.filter)); render(); }
   const toggle = event.target.closest('[data-toggle]'); if (toggle) { const task = state.tasks.find(item => item.id === toggle.dataset.toggle); if (task) { try { await taskApi.setCompletion(task.id, !task.completed); await refresh(); } catch (error) { showError(error.message); } } }
+  const subtask = event.target.closest('[data-subtask]'); if (subtask) { const task = state.tasks.find(item => item.id === subtask.dataset.subtask); if (task) { const subtasks = (task.subtasks || []).map(item => item.id === subtask.dataset.subtaskId ? { ...item, completed: subtask.checked } : item); try { await taskApi.update(task.id, taskValues(task, { subtasks })); await refresh(); } catch (error) { showError(error.message); } } }
+  const todayAction = event.target.closest('[data-today]'); if (todayAction) { const task = state.tasks.find(item => item.id === todayAction.dataset.today); if (task) { try { await taskApi.update(task.id, taskValues(task, { manualToday: !task.manualToday })); await refresh(); } catch (error) { showError(error.message); } } }
+  const pin = event.target.closest('[data-pin]'); if (pin) { const task = state.tasks.find(item => item.id === pin.dataset.pin); if (task) { try { await taskApi.update(task.id, taskValues(task, { pinned: !task.pinned, manualToday: task.pinned ? task.manualToday : true })); await refresh(); } catch (error) { showError(error.message); } } }
   const edit = event.target.closest('[data-edit]'); if (edit) { const task = state.tasks.find(item => item.id === edit.dataset.edit); if (task) openTaskDialog(task); }
   const del = event.target.closest('[data-delete]'); if (del && confirm('Delete this task?')) { try { await taskApi.delete(del.dataset.delete); await refresh(); } catch (error) { showError(error.message); } }
   const day = event.target.closest('[data-date]'); if (day) { state.selected = day.dataset.date; renderCalendar(); }
@@ -153,6 +167,15 @@ $('#task-form').addEventListener('submit', async event => {
   event.preventDefault();
   const form = event.currentTarget;
   const values = Object.fromEntries(new FormData(form));
+  const existing = state.tasks.find(task => task.id === state.editingTaskId);
+  const previous = new Map((existing?.subtasks || []).map(item => [item.title.toLowerCase(), item]));
+  values.subtasks = String(values.checklist || '').split('\n').map(title => title.trim()).filter(Boolean).slice(0, 30).map(title => {
+    const saved = previous.get(title.toLowerCase());
+    return { id: saved?.id || crypto.randomUUID(), title, completed: Boolean(saved?.completed) };
+  });
+  delete values.checklist;
+  values.pinned = Boolean(existing?.pinned);
+  values.manualToday = Boolean(existing?.manualToday);
   try { if (state.editingTaskId) await taskApi.update(state.editingTaskId, values); else await taskApi.create(values); $('#task-dialog').close(); await refresh(); }
   catch (error) { $('#form-error').textContent = error.message; }
 });

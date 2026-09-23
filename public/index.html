@@ -22,6 +22,8 @@
   <div class="kicker">A NEW LITTLE PLAN</div><h2>Add a task<span class="period">.</span></h2><p>Give it a name, a day, and a person.</p>
   <label>Task name<input name="title" maxlength="120" placeholder="e.g. Finish the presentation" required autofocus></label>
   <div class="form-row"><label>Due date<input name="dueDate" type="date" required></label><label>Priority<select name="priority"><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label></div>
+  <label>Notes <span class="field-hint">optional</span><textarea name="notes" maxlength="2000" rows="3" placeholder="Add context, links, or a reminder…"></textarea></label>
+  <label>Checklist <span class="field-hint">one item per line</span><textarea name="checklist" rows="4" placeholder="Research the topic&#10;Draft the outline&#10;Review together"></textarea></label>
   <fieldset class="owner-choice"><legend>Who's doing it?</legend><div class="owner-options">
     <label class="owner-card you"><input type="radio" name="owner" value="you" checked><span class="owner-card-content"><span class="owner-card-portrait"><img src="/charlie-snoopy-reference.png" alt=""></span><span>Snoopy</span><span class="owner-card-check">✓</span></span></label>
     <label class="owner-card partner"><input type="radio" name="owner" value="partner"><span class="owner-card-content"><span class="owner-card-portrait"><img src="/charlie-snoopy-reference.png" alt=""></span><span>Charlie Brown</span><span class="owner-card-check">✓</span></span></label>
