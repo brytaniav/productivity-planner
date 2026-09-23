@@ -11,7 +11,10 @@ function escapeHTML(value) { return String(value).replace(/[&<>"']/g, char => ({
 class TaskApi {
   async request(url, options = {}) {
     const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch { throw new Error(`The task API returned an invalid response (${res.status}).`); }
     if (!res.ok) throw new Error(data.error || 'Something went wrong.');
     return data;
   }
