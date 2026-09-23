@@ -1,1 +1,0 @@
-# No Python packages are required; this app runs with Node.js 18+.
