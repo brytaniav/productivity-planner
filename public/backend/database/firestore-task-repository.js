@@ -36,13 +36,23 @@ class FirestoreTaskRepository {
   }
 
   static async fromEnvironment(options = {}) {
-    const filename = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(__dirname, '..', '..', '..', 'secret', 'service_account.json');
-    const credentials = JSON.parse(await fs.readFile(filename, 'utf8'));
-    return new FirestoreTaskRepository(credentials, {
-      databaseId: process.env.FIRESTORE_DATABASE_ID || 'tasks',
-      ...options,
-    });
+  let credentials;
+
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    credentials = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  } else {
+    const filename =
+      process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+      path.join(__dirname, '..', '..', '..', 'secret', 'service_account.json');
+
+    credentials = JSON.parse(await fs.readFile(filename, 'utf8'));
   }
+
+  return new FirestoreTaskRepository(credentials, {
+    databaseId: process.env.FIRESTORE_DATABASE_ID || 'tasks',
+    ...options,
+  });
+}
 
   async accessToken() {
     if (this.token && Date.now() < this.tokenExpiresAt - 60_000) return this.token;
