@@ -47,3 +47,11 @@ test('today completions remain visible and use one daily slot per person', () =>
   assert.deepEqual(plan.partner.tasks.map(item => item.id), ['e']);
   assert.deepEqual(buildDailyPlan(tasks, '2026-09-21').you.tasks.map(item => item.id), ['b', 'c', 'd']);
 });
+
+test('manual and pinned tasks stay on Today and pinned tasks rank first', () => {
+  const pinned = { ...task('pin', '2027-01-01', 'you', 'low'), pinned: true, manualToday: true };
+  const manual = { ...task('manual', '2026-12-01', 'you', 'medium'), manualToday: true };
+  const urgent = task('urgent', '2026-09-20', 'you', 'high');
+  const plan = buildDailyPlan([manual, urgent, pinned], '2026-09-20');
+  assert.deepEqual(plan.you.open.map(item => item.id), ['pin', 'urgent', 'manual']);
+});

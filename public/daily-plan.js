@@ -15,7 +15,8 @@
   }
 
   function byUrgency(a, b) {
-    return a.dueDate.localeCompare(b.dueDate)
+    return Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))
+      || a.dueDate.localeCompare(b.dueDate)
       || (priority[b.priority] || 0) - (priority[a.priority] || 0)
       || String(a.createdAt || '').localeCompare(String(b.createdAt || ''))
       || String(a.id).localeCompare(String(b.id));
@@ -36,19 +37,26 @@
         .sort(byUrgency);
       const pending = own.filter(task => !task.completed).sort(byUrgency);
       const available = Math.max(0, dailyLimit - completedToday.length);
-      const open = pending.filter(task => task.dueDate <= urgentUntil).slice(0, available);
+      const fixed = pending.filter(task => task.pinned || task.manualToday);
+      const open = fixed.slice();
+      const room = () => Math.max(available, fixed.length) - open.length;
       const selected = new Set(open.map(task => task.id));
+
+      for (const task of pending.filter(task => task.dueDate <= urgentUntil && !selected.has(task.id)).slice(0, room())) {
+        open.push(task);
+        selected.add(task.id);
+      }
 
       for (const level of ['high', 'medium', 'low']) {
         const used = [...open, ...completedToday].filter(task => task.priority === level).length;
-        const needed = Math.min(dailyMix[level] - used, available - open.length);
+        const needed = Math.min(dailyMix[level] - used, room());
         for (const task of pending.filter(task => task.priority === level && !selected.has(task.id)).slice(0, Math.max(0, needed))) {
           open.push(task);
           selected.add(task.id);
         }
       }
       for (const task of pending) {
-        if (open.length >= available) break;
+        if (room() <= 0) break;
         if (!selected.has(task.id)) open.push(task);
       }
       open.sort(byUrgency);

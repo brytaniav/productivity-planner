@@ -2,7 +2,25 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const FIELDS = ['title', 'dueDate', 'owner', 'priority', 'completed', 'completedAt', 'createdAt'];
+const FIELDS = ['title', 'dueDate', 'owner', 'priority', 'completed', 'completedAt', 'createdAt', 'notes', 'subtasks', 'pinned', 'manualToday'];
+const BOOLEAN_FIELDS = new Set(['completed', 'pinned', 'manualToday']);
+const JSON_FIELDS = new Set(['subtasks']);
+
+function encodeValue(name, value) {
+  if (value === null || value === undefined) return { nullValue: null };
+  if (BOOLEAN_FIELDS.has(name)) return { booleanValue: Boolean(value) };
+  if (JSON_FIELDS.has(name)) return { stringValue: JSON.stringify(value) };
+  return { stringValue: String(value) };
+}
+
+function decodeValue(name, value) {
+  if (!value) return null;
+  const decoded = value.stringValue ?? value.booleanValue ?? null;
+  if (JSON_FIELDS.has(name)) {
+    try { return JSON.parse(decoded || '[]'); } catch { return []; }
+  }
+  return decoded;
+}
 
 class FirestoreTaskRepository {
   constructor(credentials, { databaseId = 'tasks', fetchImpl = fetch } = {}) {
@@ -65,7 +83,7 @@ class FirestoreTaskRepository {
     const fields = {};
     for (const name of FIELDS) {
       const value = task[name];
-      fields[name] = value === null ? { nullValue: null } : typeof value === 'boolean' ? { booleanValue: value } : { stringValue: value };
+      fields[name] = encodeValue(name, value);
     }
     return { fields };
   }
@@ -74,8 +92,12 @@ class FirestoreTaskRepository {
     const task = { id: document.name.split('/').pop() };
     for (const name of FIELDS) {
       const value = document.fields?.[name];
-      task[name] = value?.stringValue ?? value?.booleanValue ?? null;
+      task[name] = decodeValue(name, value);
     }
+    task.notes ||= '';
+    task.subtasks = Array.isArray(task.subtasks) ? task.subtasks : [];
+    task.pinned = Boolean(task.pinned);
+    task.manualToday = Boolean(task.manualToday);
     return task;
   }
 
@@ -117,14 +139,14 @@ class FirestoreTaskRepository {
 
   async updateDetails(id, details) {
     const url = new URL(`${this.baseUrl}/${encodeURIComponent(id)}`);
-    for (const field of ['title', 'dueDate', 'owner', 'priority']) {
+    for (const field of ['title', 'dueDate', 'owner', 'priority', 'notes', 'subtasks', 'pinned', 'manualToday']) {
       url.searchParams.append('updateMask.fieldPaths', field);
     }
     url.searchParams.set('currentDocument.exists', 'true');
     const document = await this.request(url, {
       method: 'PATCH',
       body: JSON.stringify({ fields: Object.fromEntries(
-        Object.entries(details).map(([field, value]) => [field, { stringValue: value }]),
+        Object.entries(details).map(([field, value]) => [field, encodeValue(field, value)]),
       ) }),
     }, { allowMissing: true });
     return document && FirestoreTaskRepository.decodeTask(document);

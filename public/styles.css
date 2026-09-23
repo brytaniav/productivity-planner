@@ -158,3 +158,18 @@ dialog label.owner-card{position:relative;display:block;margin:0;cursor:pointer}
 [data-theme="dark"] .tracker-count{color:#d8e4d8}
 @media(max-width:850px){.tracker-summary{grid-template-columns:1fr}}
 @media(max-width:540px){.tracker-chart-card{padding:20px 13px}.tracker-chart-header{align-items:flex-start;flex-direction:column}.tracker-plot{gap:3px}.tracker-bars{height:145px;gap:3px}.tracker-stats strong{font-size:22px}.tracker-day-label small{font-size:8px}}
+
+dialog textarea{width:100%;margin-top:7px;padding:12px;border:1px solid #dfe6dd;border-radius:8px;background:#fff;color:#2c392e;outline:none;resize:vertical;line-height:1.45}
+dialog textarea:focus{border-color:#79a184;box-shadow:0 0 0 3px #e2eee1}
+.field-hint{float:right;color:#a2aaa1;font-size:9px;font-weight:600}
+.task-card{align-items:flex-start}
+.task-card.pinned{box-shadow:0 6px 18px #3b69501b;border-top-color:#a9bea9;border-right-color:#a9bea9;border-bottom-color:#a9bea9}
+.pin-mark{color:#d7a848;font-size:9px;margin-right:7px;vertical-align:2px}
+.task-details{margin-top:11px;padding-top:10px;border-top:1px solid #edf0ea}
+.task-notes{margin:0 0 10px;color:#68766a;font-size:11px;line-height:1.55;white-space:pre-wrap}
+.subtask-list{display:grid;gap:7px}.subtask-progress{font-size:9px;font-weight:800;color:#99a399;text-transform:uppercase;letter-spacing:.8px;margin-bottom:1px}
+.subtask{display:flex;align-items:center;gap:7px;font-size:11px;color:#58675a;cursor:pointer}.subtask input{width:15px;height:15px;margin:0;accent-color:#4b805d}.subtask.done span{text-decoration:line-through;color:#a0aaa0}
+.task-actions{display:flex;align-items:center;gap:2px;margin-top:1px}.today-action,.pin-button{flex:none;border:0;background:transparent;color:#acb6aa;font-size:16px;line-height:1;padding:5px;border-radius:6px}.today-action:hover,.pin-button:hover{background:#edf3ea;color:#497459}.today-action.active{color:#d29b38;background:#fff7db}.pin-button.active{color:#3f7652;background:#e5f0e2}
+[data-theme="dark"] dialog textarea{background:#19251e;color:var(--ink);border-color:#405343}
+[data-theme="dark"] .task-details{border-color:#3b4c3d}[data-theme="dark"] .task-notes,[data-theme="dark"] .subtask{color:#bdcbbd}[data-theme="dark"] .today-action:hover,[data-theme="dark"] .pin-button:hover{background:#35483a}[data-theme="dark"] .today-action.active{background:#544929;color:#f4cf70}[data-theme="dark"] .pin-button.active{background:#36513d;color:#b4d9b8}
+@media(max-width:600px){.task-card{flex-wrap:wrap}.task-actions{margin-left:38px}.task-body{min-width:calc(100% - 55px)}.priority{margin-left:38px}}

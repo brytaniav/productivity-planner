@@ -30,7 +30,7 @@ test('task service validates input and passes a complete task to the repository'
 test('Firestore repository reads pages and writes, updates, and deletes documents', async () => {
   const calls = [];
   const id = 'a87b0e83-6f51-4bd5-8120-631a96e62a80';
-  const task = { id, title: 'Plan week', dueDate: '2026-09-21', owner: 'partner', priority: 'medium', completed: false, completedAt: null, createdAt: '2026-09-20T00:00:00.000Z' };
+  const task = { id, title: 'Plan week', dueDate: '2026-09-21', owner: 'partner', priority: 'medium', completed: false, completedAt: null, createdAt: '2026-09-20T00:00:00.000Z', notes: '', subtasks: [], pinned: false, manualToday: false };
   const document = { name: `projects/demo/databases/tasks/documents/tasks/${id}`, ...FirestoreTaskRepository.encodeTask(task) };
   const fetchImpl = async (url, options = {}) => {
     const parsed = new URL(url);
@@ -67,7 +67,7 @@ test('Firestore repository reports missing tasks without hiding database errors'
 
 test('editing updates task details while leaving completion and creation fields untouched', async () => {
   const id = 'a87b0e83-6f51-4bd5-8120-631a96e62a80';
-  const original = { id, title: 'Plan week', dueDate: '2026-09-21', owner: 'you', priority: 'medium', completed: true, completedAt: '2026-09-20T01:00:00.000Z', createdAt: '2026-09-19T00:00:00.000Z' };
+  const original = { id, title: 'Plan week', dueDate: '2026-09-21', owner: 'you', priority: 'medium', completed: true, completedAt: '2026-09-20T01:00:00.000Z', createdAt: '2026-09-19T00:00:00.000Z', notes: 'Context', subtasks: [{ id: 'one', title: 'First step', completed: true }], pinned: true, manualToday: true };
   let request;
   const fetchImpl = async (url, options) => {
     request = { url: new URL(url), options };
@@ -77,14 +77,15 @@ test('editing updates task details while leaving completion and creation fields 
   repository.token = 'test-token';
   repository.tokenExpiresAt = Date.now() + 3_600_000;
   const service = new TaskService(repository);
-  const updated = await service.update(id, { title: ' Updated ', dueDate: '2026-09-21', owner: 'partner', priority: 'medium', completed: false });
+  const updated = await service.update(id, { title: ' Updated ', dueDate: '2026-09-21', owner: 'partner', priority: 'medium', notes: 'New context', subtasks: [{ id: 'one', title: 'First step', completed: true }], pinned: true, manualToday: true });
   assert.equal(updated.completed, true);
   assert.equal(updated.createdAt, original.createdAt);
-  assert.deepEqual(request.url.searchParams.getAll('updateMask.fieldPaths'), ['title', 'dueDate', 'owner', 'priority']);
+  assert.deepEqual(request.url.searchParams.getAll('updateMask.fieldPaths'), ['title', 'dueDate', 'owner', 'priority', 'notes', 'subtasks', 'pinned', 'manualToday']);
   assert.equal(request.url.searchParams.get('currentDocument.exists'), 'true');
   assert.deepEqual(JSON.parse(request.options.body).fields, {
     title: { stringValue: 'Updated' }, dueDate: { stringValue: '2026-09-21' },
-    owner: { stringValue: 'partner' }, priority: { stringValue: 'medium' },
+    owner: { stringValue: 'partner' }, priority: { stringValue: 'medium' }, notes: { stringValue: 'New context' },
+    subtasks: { stringValue: '[{"id":"one","title":"First step","completed":true}]' }, pinned: { booleanValue: true }, manualToday: { booleanValue: true },
   });
   assert.throws(() => service.update(id, { title: '', dueDate: '2026-09-21', owner: 'you', priority: 'medium' }), { status: 400 });
 });

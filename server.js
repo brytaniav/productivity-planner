@@ -44,7 +44,17 @@ class TaskService {
     if (!title || title.length > 120 || !validDate(input.dueDate) || !['you', 'partner'].includes(input.owner) || !['low', 'medium', 'high'].includes(input.priority)) {
       throw Object.assign(new Error('Add a title, valid date, person, and priority.'), { status: 400 });
     }
-    return { title, dueDate: input.dueDate, owner: input.owner, priority: input.priority };
+    const notes = String(input.notes || '').trim();
+    if (notes.length > 2000) throw Object.assign(new Error('Notes must be 2,000 characters or fewer.'), { status: 400 });
+    const rawSubtasks = Array.isArray(input.subtasks) ? input.subtasks : [];
+    if (rawSubtasks.length > 30) throw Object.assign(new Error('A task can have up to 30 checklist items.'), { status: 400 });
+    const subtasks = rawSubtasks.map(item => ({
+      id: typeof item?.id === 'string' && item.id ? item.id : crypto.randomUUID(),
+      title: String(item?.title || '').trim().slice(0, 160),
+      completed: Boolean(item?.completed),
+    })).filter(item => item.title);
+    return { title, dueDate: input.dueDate, owner: input.owner, priority: input.priority, notes, subtasks,
+      pinned: Boolean(input.pinned), manualToday: Boolean(input.manualToday) };
   }
 
   create(input) {
@@ -60,6 +70,8 @@ class TaskService {
     if (!input || typeof input !== 'object' || typeof input.completed !== 'boolean') throw Object.assign(new Error('Invalid completion state.'), { status: 400 });
     return this.repository.setCompletion(id, input.completed);
   }
+
+  setDetails(id, input) { return this.repository.updateDetails(id, this.taskDetails(input)); }
 
   delete(id) { return this.repository.delete(id); }
 }

@@ -14,6 +14,8 @@ Place your Firebase service account JSON at `secret/service_account.json`, or se
 
 The **Today** view suggests up to five tasks per person: normally two high, two medium, and one low priority. Tasks due today, overdue, or due within the next two days fill slots first even if that changes the mix. Remaining slots follow the priority mix; if a category has too few tasks, the nearest remaining deadlines fill the gaps. New urgent tasks can replace early suggestions. Unfinished tasks are considered again tomorrow without changing their actual deadlines. Tasks completed today stay visible for the day and count toward the progress card; **All tasks** always shows the full collection. The calendar shows task names on their due dates. Views refresh every 15 seconds, and the theme button remembers your light or dark mode preference.
 
+Tasks can include notes and a checklist. Checklist items are completed inside the task card. The sun button manually adds or removes a task from **Today**; the pin button keeps it at the top of Today. Manual and pinned tasks remain there until completed or removed, while the allocator fills the remaining daily slots.
+
 The **Tracker** tab compares the number of tasks each person completed on each of the last seven days. It also shows each person's weekly completions, open tasks, and overall completion rate (completed divided by currently assigned tasks). The graph uses the current task records and their most recent completion timestamps; deleting a task or marking it incomplete removes it from these totals.
 
 This is a small trusted-pair app with no login. Do not expose the server directly to the public internet.
