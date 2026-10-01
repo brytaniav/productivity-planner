@@ -6,7 +6,7 @@ const { FirestoreTaskRepository } = require('./public/backend/database/firestore
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC = path.join(__dirname, 'public');
-const STATIC_FILES = new Set(['index.html', 'app.js', 'daily-plan.js', 'tracker.js', 'styles.css', 'house.svg', 'charlie-snoopy-reference.png', 'friends-reference.png']);
+const STATIC_FILES = new Set(['index.html', 'app.js', 'daily-plan.js', 'tracker.js', 'styles.css', 'house.svg', 'charlie-snoopy-reference.png', 'friends-reference.png', 'logo.png']);
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const QUOTE_URL = 'https://motivational-spark-api.vercel.app/api/quotes/2';
 
