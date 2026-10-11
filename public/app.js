@@ -1,4 +1,4 @@
-const state = { tasks: [], view: 'today', filter: 'all', editingTaskId: null, month: new Date(), selected: localDate(new Date()) };
+const state = { tasks: [], schedules: [], view: 'today', filter: 'all', editingTaskId: null, editingScheduleId: null, month: new Date(), selected: localDate(new Date()), scheduleView: 'month', scheduleAnchor: new Date() };
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const priorityScore = { high: 3, medium: 2, low: 1 };
@@ -27,6 +27,13 @@ class TaskApi {
 }
 
 const taskApi = new TaskApi();
+const scheduleApi = {
+  request: (url, options = {}) => taskApi.request(url, options),
+  list() { return this.request('/api/schedules'); },
+  create(values) { return this.request('/api/schedules', { method: 'POST', body: JSON.stringify(values) }); },
+  update(id, values) { return this.request(`/api/schedules/${id}`, { method: 'PUT', body: JSON.stringify(values) }); },
+  delete(id) { return this.request(`/api/schedules/${id}`, { method: 'DELETE' }); },
+};
 async function loadQuote() {
   try {
     const response = await fetch('/api/quote');
@@ -39,7 +46,7 @@ async function loadQuote() {
     // Keep the quote already in the page when the API is unavailable.
   }
 }
-async function refresh() { try { state.tasks = await taskApi.list(); render(); } catch (error) { showError(error.message); } }
+async function refresh() { try { [state.tasks, state.schedules] = await Promise.all([taskApi.list(), scheduleApi.list()]); render(); } catch (error) { showError(error.message); } }
 function showError(message) { $('#form-error').textContent = message; if (!$('#task-dialog').open) alert(message); }
 function taskSort(a, b) { return Number(a.completed) - Number(b.completed) || priorityScore[b.priority] - priorityScore[a.priority] || a.dueDate.localeCompare(b.dueDate); }
 function filtered(tasks) { return tasks.filter(task => state.filter === 'all' || task.owner === state.filter); }
@@ -84,6 +91,40 @@ function renderProgress(plan) {
     return `<div class="progress-person"><div class="progress-heading"><span class="progress-avatar ${owner}"><img src="${personImage[owner]}" alt=""></span><strong>${personName[owner]}</strong><span>${done}/${own.length} done</span></div><div class="progress-track"><div class="progress-fill ${owner}" style="width:${percentage}%"></div></div></div>`;
   }).join('');
 }
+function scheduleEventCard(event, compact = false) {
+  const owner = event.owner === 'both' ? 'both' : event.owner;
+  const ownerLabel = event.owner === 'both' ? 'Both' : personName[event.owner];
+  const repeatLabel = event.recurrence && event.recurrence !== 'none' ? ` · ↻ ${event.recurrence}` : '';
+  return `<article class="schedule-event ${owner} ${compact ? 'compact' : ''}"><div class="schedule-time">${event.startTime}<span>${event.endTime}</span></div><div class="schedule-event-body"><strong>${escapeHTML(event.title)}</strong><span>${ownerLabel}${repeatLabel}${event.location ? ` · ${escapeHTML(event.location)}` : ''}</span>${!compact && event.notes ? `<p>${escapeHTML(event.notes)}</p>` : ''}</div>${!compact ? `<div class="schedule-actions"><button data-edit-schedule="${event.id}" aria-label="Edit schedule series">✎</button><button data-delete-schedule="${event.id}" aria-label="Delete schedule series">×</button></div>` : ''}</article>`;
+}
+function renderTodaySchedules() {
+  let container = $('#daily-schedules');
+  if (!container) {
+    $('#today-list').insertAdjacentHTML('beforebegin', '<div id="daily-schedules" class="daily-schedules"></div>');
+    container = $('#daily-schedules');
+  }
+  const now = new Date();
+  container.innerHTML = ['you', 'partner'].map(owner => {
+    const events = Schedule.remainingToday(state.schedules, owner, now);
+    return `<section class="daily-schedule-person ${owner}"><div class="daily-schedule-heading"><span>${personName[owner]}'s schedule today</span><small>${events.length ? `${events.length} remaining` : 'All clear'}</small></div>${events.length ? events.map(event => scheduleEventCard(event, true)).join('') : '<p>No more meetings or events today.</p>'}</section>`;
+  }).join('');
+}
+function renderSchedule() {
+  const dates = Schedule.rangeFor(state.scheduleView, state.scheduleAnchor);
+  const eventMap = new Map(dates.map(date => [Schedule.dateKey(date), []]));
+  Schedule.occurrences(state.schedules, dates).forEach(event => eventMap.get(event.date).push(event));
+  eventMap.forEach(events => events.sort((a, b) => a.startTime.localeCompare(b.startTime)));
+  const anchor = state.scheduleAnchor;
+  $('#schedule-range-label').textContent = state.scheduleView === 'month' ? anchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : state.scheduleView === 'week' ? `${dates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${dates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : anchor.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const weekdayHeader = state.scheduleView === 'month' ? '<div class="schedule-weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>' : '';
+  const cells = dates.map(date => {
+    const key = Schedule.dateKey(date), events = eventMap.get(key);
+    const outside = state.scheduleView === 'month' && date.getMonth() !== anchor.getMonth();
+    return `<section class="schedule-day ${outside ? 'outside' : ''} ${key === localDate(new Date()) ? 'is-today' : ''}"><header><span>${state.scheduleView === 'month' ? date.getDate() : date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span><button data-add-on-date="${key}" aria-label="Add schedule on ${key}">＋</button></header><div class="schedule-day-events">${events.length ? events.map(event => scheduleEventCard(event, state.scheduleView === 'month')).join('') : '<p class="schedule-empty-day">No events</p>'}</div></section>`;
+  }).join('');
+  $('#schedule-grid').className = `schedule-grid ${state.scheduleView}`;
+  $('#schedule-grid').innerHTML = weekdayHeader + `<div class="schedule-days">${cells}</div>`;
+}
 function renderCalendar() {
   const year = state.month.getFullYear(), month = state.month.getMonth();
   $('#month-label').textContent = state.month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -119,15 +160,15 @@ function render() {
   if (!$('#daily-explainer')) $('#today-list').insertAdjacentHTML('beforebegin', '<p id="daily-explainer" class="daily-explainer">Up to 5 per person: 2 high, 2 medium, 1 low. Tasks due soon take priority; unfinished tasks carry over tomorrow.</p>');
   renderFilteredList('#today-list', daily, 'Your daily lineup is clear. Add a task or enjoy the moment.');
   renderFilteredList('#all-list', filtered([...state.tasks]).sort((a, b) => Number(a.completed) - Number(b.completed) || a.dueDate.localeCompare(b.dueDate) || priorityScore[b.priority] - priorityScore[a.priority]));
-  renderProgress(plan); renderCalendar(); renderTracker();
+  renderProgress(plan); renderTodaySchedules(); renderCalendar(); renderTracker(); renderSchedule();
   $('#today-label').textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 function setView(view) {
-  if (!['today', 'calendar', 'all', 'tracker'].includes(view)) view = 'today';
+  if (!['today', 'schedule', 'calendar', 'all', 'tracker'].includes(view)) view = 'today';
   state.view = view;
   $$('.view').forEach(el => el.classList.toggle('hidden', el.id !== `${view}-view`));
   $$('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
-  const copy = { today: ['Today', 'Make today count', "Good things happen one task at a time. Let's get going!"], calendar: ['Calendar', 'A little look ahead', 'All your important dates, together in one place.'], all: ['All tasks', 'Every little thing', 'A cozy home for every plan, big or small.'], tracker: ['Tracker', 'Celebrate your progress', 'A little look at what you have accomplished together.'] }[view];
+  const copy = { today: ['Today', 'Make today count', "Good things happen one task at a time. Let's get going!"], schedule: ['Schedule', 'Make time for what matters', 'Meetings, classes, and plans for both of you.'], calendar: ['Calendar', 'A little look ahead', 'All your important dates, together in one place.'], all: ['All tasks', 'Every little thing', 'A cozy home for every plan, big or small.'], tracker: ['Tracker', 'Celebrate your progress', 'A little look at what you have accomplished together.'] }[view];
   $('#breadcrumb').textContent = copy[0]; $('#page-title').innerHTML = `${copy[1]}<span class="period">.</span>`; $('#page-subtitle').textContent = copy[2];
   location.hash = view;
 }
@@ -151,6 +192,38 @@ function openTaskDialog(task = null) {
   $('#task-dialog').showModal();
 }
 
+function openScheduleDialog(event = null, date = localDate(new Date())) {
+  const form = $('#schedule-form');
+  form.reset();
+  state.editingScheduleId = event?.id || null;
+  $('#schedule-error').textContent = '';
+  $('#schedule-dialog h2').innerHTML = `${event ? 'Edit' : 'Add'} schedule<span class="period">.</span>`;
+  $('#schedule-dialog .submit-button').textContent = event ? 'Save changes' : 'Save schedule →';
+  form.elements.title.value = event?.title || '';
+  form.elements.date.value = event?.date || date;
+  form.elements.startTime.value = event?.startTime || '09:00';
+  form.elements.endTime.value = event?.endTime || '10:00';
+  form.elements.owner.value = event?.owner || 'you';
+  form.elements.recurrence.value = event?.recurrence || 'none';
+  form.elements.repeatEndDate.value = event?.repeatEndDate || '';
+  form.elements.location.value = event?.location || '';
+  form.elements.notes.value = event?.notes || '';
+  updateRecurrenceFields();
+  $('#schedule-dialog').showModal();
+}
+
+function updateRecurrenceFields() {
+  const form = $('#schedule-form');
+  const repeating = form.elements.recurrence.value !== 'none';
+  $('#repeat-end-label').classList.toggle('hidden-field', !repeating);
+  form.elements.repeatEndDate.required = repeating;
+  form.elements.repeatEndDate.min = form.elements.date.value;
+  if (!repeating) form.elements.repeatEndDate.value = '';
+  if (repeating && !form.elements.repeatEndDate.value) form.elements.repeatEndDate.value = form.elements.date.value;
+  const names = { daily: 'day', weekly: new Date(`${form.elements.date.value || localDate(new Date())}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' }), monthly: `month on day ${Number((form.elements.date.value || '').slice(-2)) || 1}` };
+  $('#repeat-summary').textContent = repeating ? `Repeats every ${names[form.elements.recurrence.value]} through the selected end date.` : '';
+}
+
 document.addEventListener('click', async event => {
   const nav = event.target.closest('[data-view]'); if (nav) setView(nav.dataset.view);
   const filter = event.target.closest('[data-filter]'); if (filter) { state.filter = filter.dataset.filter; $$('[data-filter]').forEach(el => el.classList.toggle('selected', el.dataset.filter === state.filter)); render(); }
@@ -161,6 +234,9 @@ document.addEventListener('click', async event => {
   const edit = event.target.closest('[data-edit]'); if (edit) { const task = state.tasks.find(item => item.id === edit.dataset.edit); if (task) openTaskDialog(task); }
   const del = event.target.closest('[data-delete]'); if (del && confirm('Delete this task?')) { try { await taskApi.delete(del.dataset.delete); await refresh(); } catch (error) { showError(error.message); } }
   const day = event.target.closest('[data-date]'); if (day) { state.selected = day.dataset.date; renderCalendar(); }
+  const addOnDate = event.target.closest('[data-add-on-date]'); if (addOnDate) openScheduleDialog(null, addOnDate.dataset.addOnDate);
+  const editSchedule = event.target.closest('[data-edit-schedule]'); if (editSchedule) { const item = state.schedules.find(schedule => schedule.id === editSchedule.dataset.editSchedule); if (item) openScheduleDialog(item); }
+  const deleteSchedule = event.target.closest('[data-delete-schedule]'); if (deleteSchedule && confirm('Delete this schedule item?')) { try { await scheduleApi.delete(deleteSchedule.dataset.deleteSchedule); await refresh(); } catch (error) { alert(error.message); } }
 });
 $$('.add-button').forEach(button => button.addEventListener('click', () => openTaskDialog()));
 $('#close-dialog').addEventListener('click', () => $('#task-dialog').close());
@@ -182,6 +258,22 @@ $('#task-form').addEventListener('submit', async event => {
   try { if (state.editingTaskId) await taskApi.update(state.editingTaskId, values); else await taskApi.create(values); $('#task-dialog').close(); await refresh(); }
   catch (error) { $('#form-error').textContent = error.message; }
 });
+$('#add-schedule').addEventListener('click', () => openScheduleDialog());
+$('#close-schedule').addEventListener('click', () => $('#schedule-dialog').close());
+$('#schedule-dialog').addEventListener('click', event => { if (event.target.id === 'schedule-dialog') $('#schedule-dialog').close(); });
+$('#schedule-dialog').addEventListener('close', () => { state.editingScheduleId = null; });
+$('#schedule-form').elements.recurrence.addEventListener('change', updateRecurrenceFields);
+$('#schedule-form').elements.date.addEventListener('change', updateRecurrenceFields);
+$('#schedule-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const values = Object.fromEntries(new FormData(event.currentTarget));
+  try { if (state.editingScheduleId) await scheduleApi.update(state.editingScheduleId, values); else await scheduleApi.create(values); $('#schedule-dialog').close(); await refresh(); }
+  catch (error) { $('#schedule-error').textContent = error.message; }
+});
+$$('[data-schedule-view]').forEach(button => button.addEventListener('click', () => { state.scheduleView = button.dataset.scheduleView; $$('[data-schedule-view]').forEach(item => item.classList.toggle('selected', item === button)); renderSchedule(); }));
+$('#schedule-today').addEventListener('click', () => { state.scheduleAnchor = new Date(); renderSchedule(); });
+$('#schedule-prev').addEventListener('click', () => { const date = new Date(state.scheduleAnchor); if (state.scheduleView === 'month') date.setMonth(date.getMonth() - 1); else date.setDate(date.getDate() - (state.scheduleView === 'week' ? 7 : 1)); state.scheduleAnchor = date; renderSchedule(); });
+$('#schedule-next').addEventListener('click', () => { const date = new Date(state.scheduleAnchor); if (state.scheduleView === 'month') date.setMonth(date.getMonth() + 1); else date.setDate(date.getDate() + (state.scheduleView === 'week' ? 7 : 1)); state.scheduleAnchor = date; renderSchedule(); });
 $('#prev-month').addEventListener('click', () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() - 1, 1); renderCalendar(); });
 $('#next-month').addEventListener('click', () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1); renderCalendar(); });
 $('#today-label').textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -197,3 +289,4 @@ setView(location.hash.slice(1) || 'today');
 refresh();
 loadQuote();
 setInterval(refresh, 15000);
+setInterval(() => { if (state.view === 'today') renderTodaySchedules(); }, 60000);

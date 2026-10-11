@@ -18,4 +18,6 @@ Tasks can include notes and a checklist. Checklist items are completed inside th
 
 The **Tracker** tab compares the number of tasks each person completed on each of the last seven days. It also shows each person's weekly completions, open tasks, and overall completion rate (completed divided by currently assigned tasks). The graph uses the current task records and their most recent completion timestamps; deleting a task or marking it incomplete removes it from these totals.
 
+The **Schedule** tab stores meetings, classes, appointments, and other timed events for Snoopy, Charlie Brown, or both. Events can happen once or repeat daily, weekly, or monthly through a chosen end date. A weekly event repeats on the weekday of its starting date. It supports month, week, and day views. Today shows each person's remaining events and removes them from the daily strip automatically after their end time. Schedule records are stored in the Firestore `schedules` collection.
+
 This is a small trusted-pair app with no login. Do not expose the server directly to the public internet.
