@@ -1,12 +1,30 @@
+/*
+This is the Vercel serverless entry point:
+- Vercel invokes it for each /api/* request.
+- It converts Vercel’s rewritten request URL into the format expected by PlannerServer.
+- It initializes the services and forwards the request to planner.handle().
+*/
 const { TaskService, PlannerServer } = require('../server.js');
 const { FirestoreTaskRepository } = require('../public/backend/database/firestore-task-repository.js');
+const { FirestoreScheduleRepository } = require('../public/backend/database/firestore-task-repository.js')
 
 let plannerPromise;
 
 function getPlanner() {
   if (!plannerPromise) {
     plannerPromise = FirestoreTaskRepository.fromEnvironment()
-      .then(repository => new PlannerServer(new TaskService(repository)));
+      .then(repository => {
+        const scheduleRepository = new FirestoreScheduleRepository(
+          repository.credentials,
+          { databaseId: repository.databaseId },
+        );
+
+        return new PlannerServer(
+          new TaskService(repository),
+          undefined,
+          new ScheduleService(scheduleRepository),
+        );
+      });
   }
   return plannerPromise;
 }
