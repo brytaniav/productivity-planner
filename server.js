@@ -3,10 +3,11 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { FirestoreTaskRepository } = require('./public/backend/database/firestore-task-repository.js');
+const { FirestoreScheduleRepository } = require('./public/backend/database/firestore-schedule-repository.js');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC = path.join(__dirname, 'public');
-const STATIC_FILES = new Set(['index.html', 'app.js', 'daily-plan.js', 'tracker.js', 'styles.css', 'house.svg', 'charlie-snoopy-reference.png', 'friends-reference.png', 'logo.png']);
+const STATIC_FILES = new Set(['index.html', 'app.js', 'daily-plan.js', 'tracker.js', 'schedule.js', 'styles.css', 'house.svg', 'charlie-snoopy-reference.png', 'friends-reference.png', 'logo.png']);
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const QUOTE_URL = 'https://motivational-spark-api.vercel.app/api/quotes/2';
 
@@ -76,6 +77,30 @@ class TaskService {
   delete(id) { return this.repository.delete(id); }
 }
 
+class ScheduleService {
+  constructor(repository) { this.repository = repository; }
+  list() { return this.repository.list(); }
+  details(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw Object.assign(new Error('Invalid schedule.'), { status: 400 });
+    const title = String(input.title || '').trim();
+    const startTime = String(input.startTime || '');
+    const endTime = String(input.endTime || '');
+    const owner = String(input.owner || '');
+    const recurrence = String(input.recurrence || 'none');
+    const repeatEndDate = String(input.repeatEndDate || '');
+    if (!title || title.length > 120 || !validDate(input.date) || !/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime) || startTime >= endTime || !['you', 'partner', 'both'].includes(owner) || !['none', 'daily', 'weekly', 'monthly'].includes(recurrence) || (recurrence !== 'none' && (!validDate(repeatEndDate) || repeatEndDate < input.date))) {
+      throw Object.assign(new Error('Add a title, valid date, time range, and attendee.'), { status: 400 });
+    }
+    const location = String(input.location || '').trim();
+    const notes = String(input.notes || '').trim();
+    if (location.length > 300 || notes.length > 2000) throw Object.assign(new Error('Schedule details are too long.'), { status: 400 });
+    return { title, date: input.date, startTime, endTime, owner, location, notes, recurrence, repeatEndDate: recurrence === 'none' ? '' : repeatEndDate };
+  }
+  create(input) { return this.repository.create({ id: crypto.randomUUID(), ...this.details(input), createdAt: new Date().toISOString() }); }
+  update(id, input) { return this.repository.update(id, this.details(input)); }
+  delete(id) { return this.repository.delete(id); }
+}
+
 class QuoteService {
   constructor(fetchImpl = fetch) { this.fetch = fetchImpl; }
 
@@ -91,7 +116,7 @@ class QuoteService {
 }
 
 class PlannerServer {
-  constructor(taskService, quoteService = new QuoteService()) { this.tasks = taskService; this.quote = quoteService; }
+  constructor(taskService, quoteService = new QuoteService(), scheduleService = null) { this.tasks = taskService; this.quote = quoteService; this.schedule = scheduleService; }
 
   async handle(req, res) {
     try {
@@ -103,6 +128,22 @@ class PlannerServer {
       if (url.pathname === '/api/tasks') {
         if (req.method === 'GET') return respond(res, 200, await this.tasks.list());
         if (req.method === 'POST') return respond(res, 201, await this.tasks.create(await readBody(req)));
+        return respond(res, 405, { error: 'Method not allowed.' });
+      }
+      if (url.pathname === '/api/schedules') {
+        if (!this.schedule) return respond(res, 503, { error: 'Schedule unavailable.' });
+        if (req.method === 'GET') return respond(res, 200, await this.schedule.list());
+        if (req.method === 'POST') return respond(res, 201, await this.schedule.create(await readBody(req)));
+        return respond(res, 405, { error: 'Method not allowed.' });
+      }
+      const scheduleMatch = url.pathname.match(/^\/api\/schedules\/([a-f0-9-]+)$/);
+      if (scheduleMatch) {
+        if (!this.schedule) return respond(res, 503, { error: 'Schedule unavailable.' });
+        if (req.method === 'PUT') {
+          const event = await this.schedule.update(scheduleMatch[1], await readBody(req));
+          return event ? respond(res, 200, event) : respond(res, 404, { error: 'Schedule not found.' });
+        }
+        if (req.method === 'DELETE') return respond(res, await this.schedule.delete(scheduleMatch[1]) ? 200 : 404, { deleted: true });
         return respond(res, 405, { error: 'Method not allowed.' });
       }
       const match = url.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)$/);
@@ -141,11 +182,12 @@ class PlannerServer {
 
 async function main() {
   const repository = await FirestoreTaskRepository.fromEnvironment();
-  const server = new PlannerServer(new TaskService(repository));
+  const scheduleRepository = new FirestoreScheduleRepository(repository.credentials, { databaseId: repository.databaseId });
+  const server = new PlannerServer(new TaskService(repository), new QuoteService(), new ScheduleService(scheduleRepository));
   server.listen();
   console.log(`Daydream Planner at http://localhost:${PORT}`);
 }
 
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });
 
-module.exports = { TaskService, QuoteService, PlannerServer };
+module.exports = { TaskService, ScheduleService, QuoteService, PlannerServer };
